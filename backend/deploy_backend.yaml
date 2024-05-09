@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: counter-backend
+  labels:
+    name: counter-backend
+  annotations:
+    "sidecar.jaegertracing.io/inject": "true"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: counter-backend
+  template:
+    metadata:
+      labels:
+        app: counter-backend
+    spec:
+      containers:
+        - name: counter-backend
+          image: ashishkumar256/trace-api 
+          imagePullPolicy: Always
+          ports:
+            - name: backend-port
+              containerPort: 5000
+              protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+    name: counter-backend
+spec:
+    selector:
+        app: counter-backend
+    ports:
+        - protocol: TCP
+          port: 5000
+          targetPort: 5000
