@@ -12,9 +12,9 @@ def initialize_tracer():
         config={
             'sampler': {'type': 'const', 'param': 1},
             'logging': True,
-            'reporter': {
-                'collector_endpoint': 'http://jaeger-collector.tracing.svc:14268/api/traces',
-                'log_spans': True,
+            'local_agent': {
+                'reporting_host': 'jaeger-collector.tracing.svc',
+                'reporting_port': 6831,
             },
         },
         service_name='flask-counter-frontend',
