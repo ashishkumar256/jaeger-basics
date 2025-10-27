@@ -25,10 +25,8 @@ def initialize_tracer():
         config={
             'sampler': {'type': 'const', 'param': 1},
             'logging': True,
-            'reporter': {
-                'collector_endpoint': 'http://jaeger-collector.tracing.svc:14268/api/traces',
-                'log_spans': True,
-            },
+            'collector_endpoint': 'http://jaeger-collector.tracing.svc:14268/api/traces',
+            'log_spans': True,
         },
         service_name='django-counter-backend',
         validate=True,
