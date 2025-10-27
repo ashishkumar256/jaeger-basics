@@ -13,7 +13,7 @@ def initialize_tracer():
             'sampler': {'type': 'const', 'param': 1},
             'logging': True,
             'local_agent': {
-                'reporting_host': 'jaeger-collector.tracing.svc',
+                'reporting_host': 'jaeger-agent.tracing.svc',
                 'reporting_port': 6831,
             },
         },
