@@ -18,11 +18,11 @@ spec:
     spec:
       containers:
         - name: counter-backend
-          image: ashishkumar256/trace-api:2
+          image: ashishkumar256/trace-api:4
           imagePullPolicy: Always
           ports:
             - name: backend-port
-              containerPort: 5000
+              containerPort: 8000
               protocol: TCP
 ---
 apiVersion: v1
@@ -34,5 +34,5 @@ spec:
         app: counter-backend
     ports:
         - protocol: TCP
-          port: 5000
-          targetPort: 5000
+          port: 8000
+          targetPort: 8000

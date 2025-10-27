@@ -30,7 +30,7 @@ def initialize_tracer():
                 'log_spans': True,
             },
         },
-        service_name='django-counter-service',
+        service_name='django-counter-backend',
         validate=True,
     )
     return config.initialize_tracer()

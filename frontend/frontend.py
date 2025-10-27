@@ -17,7 +17,7 @@ def initialize_tracer():
                 'log_spans': True,
             },
         },
-        service_name='visitor-counter-service',
+        service_name='flask-counter-frontend',
         validate=True,
     )
     return config.initialize_tracer()

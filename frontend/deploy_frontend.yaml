@@ -18,12 +18,12 @@ spec:
     spec:
       containers:
         - name: counter-frontend
-          image: ashishkumar256/trace-ui:2
+          image: ashishkumar256/trace-ui:4
           imagePullPolicy: Always
           env:
             - name: COUNTER_ENDPOINT
-              value: "http://counter-backend.default.svc.cluster.local:5000"
+              value: "http://counter-backend.default.svc.cluster.local:8000"
           ports:
             - name: frontend-port
-              containerPort: 8000
+              containerPort: 5000
               protocol: TCP
