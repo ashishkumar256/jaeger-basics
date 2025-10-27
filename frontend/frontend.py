@@ -56,9 +56,16 @@ def next():
 # Graceful shutdown
 @app.teardown_appcontext
 def close_tracer(exception):
+    global jaeger_tracer
     if jaeger_tracer:
-        jaeger_tracer.close()
+        try:
+            jaeger_tracer.close()
+        except RuntimeError as e:
+            # ignore the “no current event loop in thread” error
+            if "no current event loop" in str(e):
+                pass
+            else:
+                raise
 
 if __name__ == '__main__':
-    # Running via python frontend.py
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
