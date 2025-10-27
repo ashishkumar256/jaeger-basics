@@ -28,7 +28,7 @@ def increase_counter(counter_endpoint):
 
 @app.route('/last')
 def last():
-    counter_service = os.environ.get('COUNTER_ENDPOINT', default="https://localhost:5000")
+    counter_service = os.environ.get('COUNTER_ENDPOINT', default="https://localhost:8000")
     counter_endpoint = f'{counter_service}/api/counter'
     counter = get_counter(counter_endpoint)
 
@@ -36,7 +36,7 @@ def last():
 
 @app.route('/next')
 def next():
-    counter_service = os.environ.get('COUNTER_ENDPOINT', default="https://localhost:5000")
+    counter_service = os.environ.get('COUNTER_ENDPOINT', default="https://localhost:8000")
     counter_endpoint = f'{counter_service}/api/counter'
     counter = increase_counter(counter_endpoint)
 

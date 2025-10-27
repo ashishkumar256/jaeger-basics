@@ -9,4 +9,4 @@ ENV FLASK_APP frontend.py
 
 WORKDIR /usr/src/frontend
 
-CMD flask run --host=0.0.0.0 --port=8000
+CMD flask run --host=0.0.0.0 --port=5000
