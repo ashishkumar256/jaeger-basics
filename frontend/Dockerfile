@@ -1,6 +1,6 @@
 FROM python:3.9-alpine
 
-RUN pip3 install --no-cache-dir  flask six requests jaeger-client flask-opentracing
+RUN pip3 install --no-cache-dir flask six requests jaeger-client flask-opentracing
 
 WORKDIR /app
 
@@ -10,4 +10,4 @@ ENV FLASK_APP frontend
 
 EXPOSE 5000
 
-CMD flask run --host=0.0.0.0 --port=5000
+CMD ["python", "frontend.py"]

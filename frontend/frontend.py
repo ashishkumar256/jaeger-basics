@@ -41,14 +41,14 @@ def increase_counter(counter_endpoint):
 
 @app.route('/last')
 def last():
-    counter_service = os.environ.get('COUNTER_ENDPOINT', default="https://localhost:8000")
+    counter_service = os.environ.get('COUNTER_ENDPOINT', "https://localhost:8000")
     counter_endpoint = f'{counter_service}/api/counter'
     counter = get_counter(counter_endpoint)
     return f"\nLast visitor number: {counter}\n\n"
 
 @app.route('/next')
 def next():
-    counter_service = os.environ.get('COUNTER_ENDPOINT', default="https://localhost:8000")
+    counter_service = os.environ.get('COUNTER_ENDPOINT', "https://localhost:8000")
     counter_endpoint = f'{counter_service}/api/counter'
     counter = increase_counter(counter_endpoint)
     return f"\nNext visitor number: {counter}\n\n"
@@ -58,3 +58,7 @@ def next():
 def close_tracer(exception):
     if jaeger_tracer:
         jaeger_tracer.close()
+
+if __name__ == '__main__':
+    # Running via python frontend.py
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
