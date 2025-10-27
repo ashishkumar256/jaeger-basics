@@ -1,6 +1,6 @@
 FROM python:3.12-alpine
 
-RUN pip3 install --no-cache-dir  flask six requests flask_opentracing jaeger-client opentracing opentracing-instrumentation flask-opentracing requests-opentracing
+RUN pip3 install --no-cache-dir  flask six requests jaeger-client flask-opentracing
 
 WORKDIR /app
 
