@@ -5,34 +5,38 @@ from django.http import HttpResponse
 from django.urls import path
 from django.core.management import execute_from_command_line
 
-# Jaeger / OpenTracing imports
 from jaeger_client import Config
-from opentracing_instrumentation.client_hooks import install_all_patches
-import opentracing
+from django_opentracing.middleware import DjangoTracing
+from django_opentracing import DjangoTracer
 
 # ---- Minimal Django setup ----
 settings.configure(
     DEBUG=True,
     ROOT_URLCONF=__name__,
     ALLOWED_HOSTS=["*"],
+    MIDDLEWARE=[
+        'django_opentracing.middleware.OpenTracingMiddleware',
+    ],
 )
 
-# ---- Initialize Jaeger tracer ----
-def init_tracer():
+# ---- Jaeger tracer setup ----
+def initialize_tracer():
     config = Config(
         config={
             'sampler': {'type': 'const', 'param': 1},
             'logging': True,
-            'reporter_batch_size': 1,
+            'reporter': {
+                'collector_endpoint': 'http://jaeger-collector.tracing.svc:14268/api/traces',
+                'log_spans': True,
+            },
         },
-        service_name="backend",
+        service_name='django-counter-service',
+        validate=True,
     )
-    tracer = config.initialize_tracer()
-    install_all_patches()  # Patch requests, etc.
-    return tracer
+    return config.initialize_tracer()
 
-tracer = init_tracer()
-opentracing.global_tracer = tracer
+jaeger_tracer = initialize_tracer()
+django_tracing = DjangoTracing(DjangoTracer(jaeger_tracer))
 
 # ---- Counter logic ----
 counter_value = 1
@@ -42,26 +46,25 @@ def simulate_latency():
     sleep(randint(1, 3))
 
 def get_counter():
-    with tracer.start_active_span("get_counter"):
+    with jaeger_tracer.start_span('get_counter'):
         simulate_latency()
         return str(counter_value)
 
 def increase_counter():
     global counter_value
-    with tracer.start_active_span("increase_counter"):
+    with jaeger_tracer.start_span('increase_counter'):
         simulate_latency()
         counter_value += 1
         return str(counter_value)
 
 # ---- Django view ----
 def counter_view(request):
-    with tracer.start_active_span("counter_view") as scope:
-        if request.method == "GET":
-            return HttpResponse(get_counter())
-        elif request.method == "POST":
-            return HttpResponse(increase_counter())
-        else:
-            return HttpResponse("Method not allowed", status=405)
+    if request.method == "GET":
+        return HttpResponse(get_counter())
+    elif request.method == "POST":
+        return HttpResponse(increase_counter())
+    else:
+        return HttpResponse("Method not allowed", status=405)
 
 # ---- URL pattern ----
 urlpatterns = [
@@ -70,4 +73,4 @@ urlpatterns = [
 
 # ---- Run server ----
 if __name__ == "__main__":
-    execute_from_command_line(["manage.py", "runserver", "0.0.0.0:8000"])
+    execute_from_command_line(["manage.py", "runserver", "8000"])

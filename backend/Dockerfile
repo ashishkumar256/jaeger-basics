@@ -4,7 +4,7 @@ WORKDIR /app
 
 COPY backend.py .
 
-RUN pip install --no-cache-dir django jaeger-client opentracing opentracing-instrumentation
+RUN pip install --no-cache-dir django jaeger-client django-opentracing 'tornado>=4.0.0,<5.0.0'
 
 EXPOSE 8000
 
