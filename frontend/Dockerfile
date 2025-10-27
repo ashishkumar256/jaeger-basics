@@ -1,12 +1,11 @@
-FROM alpine:3.8
+FROM python:3.12-alpine
 
-RUN apk add --no-cache py3-pip python3 && \
-    pip3 install flask six requests flask_opentracing jaeger-client
+RUN pip3 install --no-cache-dir  flask six requests flask_opentracing jaeger-client
 
-COPY . /usr/src/frontend
+WORKDIR /app
 
-ENV FLASK_APP frontend.py
+COPY frontend.py .
 
-WORKDIR /usr/src/frontend
+EXPOSE 5000
 
 CMD flask run --host=0.0.0.0 --port=5000
