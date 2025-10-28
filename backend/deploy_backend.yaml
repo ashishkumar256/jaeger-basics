@@ -1,24 +1,24 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: counter-backend
+  name: sunspot-backend
   labels:
-    name: counter-backend
-  annotations:
-    "sidecar.jaegertracing.io/inject": "true"
+    name: sunspot-backend
+  # annotations:
+  #   "sidecar.jaegertracing.io/inject": "true"
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: counter-backend
+      app: sunspot-backend
   template:
     metadata:
       labels:
-        app: counter-backend
+        app: sunspot-backend
     spec:
       containers:
-        - name: counter-backend
-          image: ashishkumar256/trace-api:11
+        - name: sunspot-backend
+          image: ashishkumar256/trace-api:1
           imagePullPolicy: Always
           ports:
             - name: backend-port
@@ -28,10 +28,10 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-    name: counter-backend
+    name: sunspot-backend
 spec:
     selector:
-        app: counter-backend
+        app: sunspot-backend
     ports:
         - protocol: TCP
           port: 8000

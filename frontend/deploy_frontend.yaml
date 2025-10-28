@@ -1,28 +1,28 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: counter-frontend
+  name: sunspot-frontend
   labels:
-    name: counter-frontend
-  annotations:
-    "sidecar.jaegertracing.io/inject": "true"
+    name: sunspot-frontend
+  # annotations:
+  #   "sidecar.jaegertracing.io/inject": "true"
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: counter-frontend
+      app: sunspot-frontend
   template:
     metadata:
       labels:
-        app: counter-frontend
+        app: sunspot-frontend
     spec:
       containers:
-        - name: counter-frontend
-          image: ashishkumar256/trace-ui:8
+        - name: sunspot-frontend
+          image: ashishkumar256/trace-ui:1
           imagePullPolicy: Always
           env:
-            - name: COUNTER_ENDPOINT
-              value: "http://counter-backend.default.svc.cluster.local:8000"
+            - name: SUNSPOT_BACKEND_ENDPOINT
+              value: "http://sunspot-backend.default.svc.cluster.local:8000"
           ports:
             - name: frontend-port
               containerPort: 5000
@@ -32,10 +32,10 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-    name: counter-frontend
+    name: sunspot-frontend
 spec:
     selector:
-        app: counter-frontend
+        app: sunspot-frontend
     ports:
         - protocol: TCP
           port: 5000

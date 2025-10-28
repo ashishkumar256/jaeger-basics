@@ -1,6 +1,6 @@
 import os
 import requests
-from flask import Flask
+from flask import Flask, request
 from jaeger_client import Config
 from flask_opentracing import FlaskTracing
 
@@ -17,7 +17,7 @@ def initialize_tracer():
                 'reporting_port': 6831,
             },
         },
-        service_name='flask-counter-frontend',
+        service_name='flask-sunspot-frontend',
         validate=True,
     )
     return config.initialize_tracer()
@@ -27,31 +27,34 @@ jaeger_tracer = initialize_tracer()
 tracing = FlaskTracing(jaeger_tracer, True, app)
 
 # Business logic
-def get_counter(counter_endpoint):
-    with jaeger_tracer.start_span('get_counter') as span:
-        response = requests.get(counter_endpoint)
-        span.set_tag('http.status_code', response.status_code)
-        return response.text
+def fetch_sunspot(endpoint, span_name):
+    with jaeger_tracer.start_span(span_name) as span:
+        try:
+            response = requests.get(endpoint)
+            span.set_tag('http.status_code', response.status_code)
+            response.raise_for_status()
+            return response.text, response.status_code
+        except requests.exceptions.RequestException as e:
+            span.set_tag('error', True)
+            return f"Error fetching sun spot timings: {e}", 503
 
-def increase_counter(counter_endpoint):
-    with jaeger_tracer.start_span('increase_counter') as span:
-        response = requests.post(counter_endpoint)
-        span.set_tag('http.status_code', response.status_code)
-        return response.text
+@app.route('/sunspot/city/<city_name>')
+def sunspot_by_city(city_name):
+    sunspot_service = os.environ.get('SUNSPOT_BACKEND_ENDPOINT', "http://localhost:8000")
+    endpoint = f'{sunspot_service}/api/sunspot?city={city_name}'
+    result, status = fetch_sunspot(endpoint, 'get_sunspot_by_city')
+    return result, status
 
-@app.route('/last')
-def last():
-    counter_service = os.environ.get('COUNTER_ENDPOINT', "https://localhost:8000")
-    counter_endpoint = f'{counter_service}/api/counter'
-    counter = get_counter(counter_endpoint)
-    return f"\nLast visitor number: {counter}\n\n"
-
-@app.route('/next')
-def next():
-    counter_service = os.environ.get('COUNTER_ENDPOINT', "https://localhost:8000")
-    counter_endpoint = f'{counter_service}/api/counter'
-    counter = increase_counter(counter_endpoint)
-    return f"\nNext visitor number: {counter}\n\n"
+@app.route('/sunspot/coords')
+def sunspot_by_coords():
+    lat = request.args.get('lat')
+    lon = request.args.get('lon')
+    if not lat or not lon:
+        return "Missing 'lat' or 'lon' query parameters.\n", 400
+    sunspot_service = os.environ.get('SUNSPOT_BACKEND_ENDPOINT', "http://localhost:8000")
+    endpoint = f'{sunspot_service}/api/sunspot?lat={lat}&lon={lon}'
+    result, status = fetch_sunspot(endpoint, 'get_sunspot_by_coords')
+    return result, status
 
 # Graceful shutdown
 @app.teardown_appcontext
@@ -61,7 +64,6 @@ def close_tracer(exception):
         try:
             jaeger_tracer.close()
         except RuntimeError as e:
-            # ignore the “no current event loop in thread” error
             if "no current event loop" in str(e):
                 pass
             else:
