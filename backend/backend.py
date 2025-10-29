@@ -9,7 +9,7 @@ from django_opentracing import DjangoTracer
 import json
 from datetime import datetime, date, timedelta
 from dateutil import parser
-import redis # <-- New import
+import redis
 
 # --- Configuration ---
 NOMINATIM_REVERSE_URL = "https://nominatim.openstreetmap.org/reverse"
@@ -19,7 +19,12 @@ SUNRISE_SUNSET_API_URL = "https://api.sunrisesunset.io/json"
 # --- Environment Variables & Constants ---
 # Use an environment variable for the Redis server address, default to localhost:6379
 REDIS_SERVER = os.environ.get("REDIS_SERVER", "localhost:6379")
-REDIS_HOST, REDIS_PORT = REDIS_SERVER.split(":")
+try:
+    REDIS_HOST, REDIS_PORT = REDIS_SERVER.split(":")
+except ValueError:
+    print(f"ERROR: Invalid REDIS_SERVER format: {REDIS_SERVER}. Expected host:port.")
+    REDIS_HOST, REDIS_PORT = "localhost", "6379" # Fallback
+    
 REDIS_KEY_PREFIX = "sunspot:data"
 
 # TTLs in seconds
@@ -38,6 +43,7 @@ settings.configure(
 
 # --- Service Initialization ---
 def initialize_tracer():
+    """Initializes the Jaeger tracer."""
     config = Config(
         config={
             'sampler': {'type': 'const', 'param': 1},
@@ -53,18 +59,19 @@ def initialize_tracer():
     return config.initialize_tracer()
 
 def initialize_redis_client():
+    """Initializes and pings the Redis client."""
     try:
         r = redis.Redis(host=REDIS_HOST, port=int(REDIS_PORT), decode_responses=True)
         r.ping()
-        print(f"Connected to Redis at {REDIS_SERVER}")
+        print(f"✅ Connected to Redis at {REDIS_SERVER}")
         return r
     except Exception as e:
-        print(f"Could not connect to Redis at {REDIS_SERVER}: {e}")
+        print(f"❌ Could not connect to Redis at {REDIS_SERVER}: {e}")
         return None
 
 tracer = initialize_tracer()
 django_tracer = DjangoTracer(tracer)
-redis_client = initialize_redis_client() # <-- Initialize Redis
+redis_client = initialize_redis_client() 
 
 # --- Utility Functions ---
 def resolve_date_param(date_param):
@@ -84,10 +91,9 @@ def resolve_date_param(date_param):
         except ValueError:
             return None # Invalid date format
 
-# --- Core logic (Modified to include caching) ---
+# --- Core logic (Modified to include caching and logging) ---
 def get_coordinates_from_city(city):
     """Translates a city name into latitude and longitude using Nominatim (OpenStreetMap)."""
-    # No caching for coordinates in this simple setup, as they are mostly static
     try:
         r = requests.get(NOMINATIM_SEARCH_URL, params={
             "city": city, "format": "json", "limit": 1
@@ -102,7 +108,6 @@ def get_coordinates_from_city(city):
 
 def get_city_from_coordinates(lat, lon):
     """Performs reverse geocoding to find a city name from coordinates."""
-    # No caching for reverse geocoding in this simple setup
     try:
         r = requests.get(NOMINATIM_REVERSE_URL, params={
             "lat": lat, "lon": lon, "format": "json"
@@ -135,27 +140,35 @@ def get_sunspot(lat, lon, date_param):
     ttl = SHORT_TTL if is_today else LONG_TTL
     
     sun_data = None
+    
+    # --- Caching Logic with Diagnostic Log ---
     if redis_client:
         with tracer.start_span("redis-get"):
             cached_data = redis_client.get(cache_key)
+            
         if cached_data:
-            print(f"Cache HIT for key: {cache_key}")
-            # Cache stores JSON string, so we need to parse it back
+            # Cache HIT
+            print(f"🎯 Cache HIT for key: {cache_key}")
             try:
                 sun_data = json.loads(cached_data)
             except json.JSONDecodeError:
-                print("Error decoding cached data, fetching from API.")
-                # Force cache miss
+                print("⚠️ Error decoding cached data, fetching from API.")
                 sun_data = None 
-
+        else:
+            # Cache MISS
+            print(f"🔍 Cache MISS, fetching from API for key: {cache_key}")
+    else:
+        # Diagnostic Log
+        print("🛑 WARNING: Redis client is not available (is None). Skipping caching.") 
+    # --- End Caching Logic ---
+        
     if sun_data is None:
-        print(f"Cache MISS or data error, fetching from API for key: {cache_key}")
+        # Fetch from external API (only if cache missed or client is unavailable)
         try:
             with tracer.start_span("sunrisesunset-api-call"):
                 # Construct parameters dictionary
                 params = {"lat": lat, "lng": lon}
-                # The API expects the date in its own format, if it was a relative string, it sends the resolved one.
-                # If date_param was an absolute date, the API will handle it.
+                # Use the raw date param so the API handles relative dates if necessary
                 if date_param:
                     params["date"] = date_param 
 
@@ -170,10 +183,10 @@ def get_sunspot(lat, lon, date_param):
                 with tracer.start_span("redis-set"):
                     # Store sun_data as a JSON string
                     redis_client.set(cache_key, json.dumps(sun_data), ex=ttl) 
-                    print(f"Cache SET for key: {cache_key} with TTL: {ttl}s")
+                    print(f"💾 Cache SET for key: {cache_key} with TTL: {ttl}s")
 
         except Exception as e:
-            print(f"Error fetching sunspot data from API: {e}")
+            print(f"❌ Error fetching sunspot data from API: {e}")
             pass
 
     return sun_data, resolved_date_str
@@ -211,7 +224,6 @@ def sunspot_view(request):
             return JsonResponse({"error": "Missing city or lat/lon"}, status=400)
 
         # Retrieve sun data using the determined coordinates and optional date
-        # get_sunspot now returns the resolved date string as well
         sun_data, resolved_date_str = get_sunspot(lat, lon, date_param)
 
         if sun_data:
