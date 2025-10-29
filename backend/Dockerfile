@@ -4,7 +4,7 @@ WORKDIR /app
 
 COPY backend.py .
 
-RUN pip install --no-cache-dir django jaeger-client django-opentracing requests 'tornado>=4.0.0,<5.0.0' python-dateutil
+RUN pip install --no-cache-dir django jaeger-client django-opentracing redis requests 'tornado>=4.0.0,<5.0.0' python-dateutil
 
 EXPOSE 8000
 
