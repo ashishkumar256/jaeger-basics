@@ -24,6 +24,13 @@ spec:
             - name: backend-port
               containerPort: 8000
               protocol: TCP
+        - name: redis
+          image: redis
+          imagePullPolicy: Always
+          ports:
+            - name: redis-port
+              containerPort: 6379
+              protocol: TCP        
 ---
 apiVersion: v1
 kind: Service
@@ -36,3 +43,6 @@ spec:
         - protocol: TCP
           port: 8000
           targetPort: 8000
+        - protocol: TCP
+          port: 6379
+          targetPort: 6379          

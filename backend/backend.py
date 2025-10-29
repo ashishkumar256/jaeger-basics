@@ -6,11 +6,27 @@ from django.core.management import execute_from_command_line
 from jaeger_client import Config
 from django_opentracing.middleware import OpenTracingMiddleware
 from django_opentracing import DjangoTracer
+import json
+from datetime import datetime, date, timedelta
+from dateutil import parser
+import redis # <-- New import
 
 # --- Configuration ---
 NOMINATIM_REVERSE_URL = "https://nominatim.openstreetmap.org/reverse"
 NOMINATIM_SEARCH_URL = "https://nominatim.openstreetmap.org/search"
 SUNRISE_SUNSET_API_URL = "https://api.sunrisesunset.io/json"
+
+# --- Environment Variables & Constants ---
+# Use an environment variable for the Redis server address, default to localhost:6379
+REDIS_SERVER = os.environ.get("REDIS_SERVER", "localhost:6379")
+REDIS_HOST, REDIS_PORT = REDIS_SERVER.split(":")
+REDIS_KEY_PREFIX = "sunspot:data"
+
+# TTLs in seconds
+# Cache future/past dates for a long time (won't change)
+LONG_TTL = 60 * 60 * 24 # 24 hours 
+# Cache today/relative dates for a short time (to get fresh data tomorrow)
+SHORT_TTL = 60 * 60 # 1 hour 
 
 # --- Minimal Django setup ---
 settings.configure(
@@ -20,7 +36,7 @@ settings.configure(
     MIDDLEWARE=['django_opentracing.middleware.OpenTracingMiddleware'],
 )
 
-# --- Jaeger tracer setup ---
+# --- Service Initialization ---
 def initialize_tracer():
     config = Config(
         config={
@@ -36,12 +52,42 @@ def initialize_tracer():
     )
     return config.initialize_tracer()
 
+def initialize_redis_client():
+    try:
+        r = redis.Redis(host=REDIS_HOST, port=int(REDIS_PORT), decode_responses=True)
+        r.ping()
+        print(f"Connected to Redis at {REDIS_SERVER}")
+        return r
+    except Exception as e:
+        print(f"Could not connect to Redis at {REDIS_SERVER}: {e}")
+        return None
+
 tracer = initialize_tracer()
 django_tracer = DjangoTracer(tracer)
+redis_client = initialize_redis_client() # <-- Initialize Redis
 
-# --- Core logic ---
+# --- Utility Functions ---
+def resolve_date_param(date_param):
+    """Resolves relative date strings ('today', 'yesterday', 'tomorrow') or a date string to a YYYY-MM-DD string."""
+    today = date.today()
+    if not date_param or date_param.lower() == 'today':
+        return today.strftime('%Y-%m-%d')
+    elif date_param.lower() == 'yesterday':
+        return (today - timedelta(days=1)).strftime('%Y-%m-%d')
+    elif date_param.lower() == 'tomorrow':
+        return (today + timedelta(days=1)).strftime('%Y-%m-%d')
+    else:
+        # Check if the date_param is a valid date string
+        try:
+            # We only care about the date part for caching key, not time
+            return parser.parse(date_param).strftime('%Y-%m-%d')
+        except ValueError:
+            return None # Invalid date format
+
+# --- Core logic (Modified to include caching) ---
 def get_coordinates_from_city(city):
     """Translates a city name into latitude and longitude using Nominatim (OpenStreetMap)."""
+    # No caching for coordinates in this simple setup, as they are mostly static
     try:
         r = requests.get(NOMINATIM_SEARCH_URL, params={
             "city": city, "format": "json", "limit": 1
@@ -56,6 +102,7 @@ def get_coordinates_from_city(city):
 
 def get_city_from_coordinates(lat, lon):
     """Performs reverse geocoding to find a city name from coordinates."""
+    # No caching for reverse geocoding in this simple setup
     try:
         r = requests.get(NOMINATIM_REVERSE_URL, params={
             "lat": lat, "lon": lon, "format": "json"
@@ -71,36 +118,78 @@ def get_city_from_coordinates(lat, lon):
     # Fallback to coordinates if reverse lookup fails
     return f"Location {lat}, {lon}"
 
-def get_sunspot(lat, lon, date=None):
-    """Fetches sunrise and sunset data from sunrisesunset.io API, optionally for a specific date."""
-    try:
-        # Construct parameters dictionary
-        params = {"lat": lat, "lng": lon}
-        if date:
-            params["date"] = date # Add date parameter if provided
+def get_sunspot(lat, lon, date_param):
+    """
+    Fetches sunrise and sunset data, using Redis cache if available.
+    Date parameter should be the raw input (e.g., 'today', '2025-10-05').
+    """
+    resolved_date_str = resolve_date_param(date_param)
+    if not resolved_date_str:
+        return None, None # Invalid date
 
-        r = requests.get(SUNRISE_SUNSET_API_URL, params=params)
-        r.raise_for_status()
-        data = r.json()
-        if data.get("status") == "OK":
-            return data["results"]
-    except Exception as e:
-        print(f"Error fetching sunspot data: {e}")
-        pass
-    return None
+    # Generate a unique cache key: sunspot:data:{latitude}:{longitude}:{YYYY-MM-DD}
+    cache_key = f"{REDIS_KEY_PREFIX}:{lat}:{lon}:{resolved_date_str}"
+    
+    # Determine TTL
+    is_today = resolved_date_str == date.today().strftime('%Y-%m-%d')
+    ttl = SHORT_TTL if is_today else LONG_TTL
+    
+    sun_data = None
+    if redis_client:
+        with tracer.start_span("redis-get"):
+            cached_data = redis_client.get(cache_key)
+        if cached_data:
+            print(f"Cache HIT for key: {cache_key}")
+            # Cache stores JSON string, so we need to parse it back
+            try:
+                sun_data = json.loads(cached_data)
+            except json.JSONDecodeError:
+                print("Error decoding cached data, fetching from API.")
+                # Force cache miss
+                sun_data = None 
 
-# --- View ---
+    if sun_data is None:
+        print(f"Cache MISS or data error, fetching from API for key: {cache_key}")
+        try:
+            with tracer.start_span("sunrisesunset-api-call"):
+                # Construct parameters dictionary
+                params = {"lat": lat, "lng": lon}
+                # The API expects the date in its own format, if it was a relative string, it sends the resolved one.
+                # If date_param was an absolute date, the API will handle it.
+                if date_param:
+                    params["date"] = date_param 
+
+                r = requests.get(SUNRISE_SUNSET_API_URL, params=params)
+                r.raise_for_status()
+                data = r.json()
+                if data.get("status") == "OK":
+                    sun_data = data["results"]
+                
+            if sun_data and redis_client:
+                # Cache the fresh data
+                with tracer.start_span("redis-set"):
+                    # Store sun_data as a JSON string
+                    redis_client.set(cache_key, json.dumps(sun_data), ex=ttl) 
+                    print(f"Cache SET for key: {cache_key} with TTL: {ttl}s")
+
+        except Exception as e:
+            print(f"Error fetching sunspot data from API: {e}")
+            pass
+
+    return sun_data, resolved_date_str
+
+# --- View (Modified to handle date resolution) ---
 def sunspot_view(request):
     """
     Main view to handle sunspot queries by city or coordinates, with optional date.
-    Includes city name in the response.
+    Includes city name in the response and uses caching.
     """
     city_name = None
     with tracer.start_span("sunspot_view"):
         city = request.GET.get("city")
         lat = request.GET.get("lat")
         lon = request.GET.get("lon")
-        date = request.GET.get("date") # Extract the new date parameter
+        date_param = request.GET.get("date") # Raw date parameter
 
         if city:
             # Case 1: Query by City Name
@@ -122,10 +211,11 @@ def sunspot_view(request):
             return JsonResponse({"error": "Missing city or lat/lon"}, status=400)
 
         # Retrieve sun data using the determined coordinates and optional date
-        sun_data = get_sunspot(lat, lon, date=date)
+        # get_sunspot now returns the resolved date string as well
+        sun_data, resolved_date_str = get_sunspot(lat, lon, date_param)
 
         if sun_data:
-            # Ensure city_name is not None (should be handled by logic above, but safety check)
+            # Ensure city_name is not None
             if not city_name:
                 city_name = f"Location {lat}, {lon}"
 
@@ -133,11 +223,12 @@ def sunspot_view(request):
                 "city": city_name,
                 "latitude": lat,
                 "longitude": lon,
-                "date_requested": date, # Include the requested date in the response for clarity
+                # Include the resolved date in the response for clarity
+                "date_requested": resolved_date_str, 
                 "sun_data": sun_data
             })
         else:
-            return JsonResponse({"error": "Could not retrieve sunspot data"}, status=503)
+            return JsonResponse({"error": "Could not retrieve sunspot data or invalid date parameter"}, status=503)
 
 # --- URL pattern ---
 urlpatterns = [
