@@ -26,7 +26,7 @@ def initialize_tracer():
                 'reporting_port': 6831,
             },
         },
-        service_name='django-sunspot-backend',
+        service_name='sunspot-django-backend',
         validate=True,
     )
     return config.initialize_tracer()
