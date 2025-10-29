@@ -33,7 +33,7 @@ def fetch_sunspot(endpoint, span_name):
             # Injecting trace context into the request headers for distributed tracing
             headers = {}
             tracing.tracer.inject(span.context, 'http_headers', headers)
-            
+
             response = requests.get(endpoint, headers=headers)
             span.set_tag('http.status_code', response.status_code)
             response.raise_for_status()
@@ -45,29 +45,41 @@ def fetch_sunspot(endpoint, span_name):
 
 @app.route('/sunspot')
 def sunspot_combined_query():
-    """Route to get sunspot data using either 'city' or 'lat'/'lon' query parameters."""
-    
+    """
+    Route to get sunspot data using either 'city' or 'lat'/'lon' query parameters,
+    now including an optional 'date' parameter.
+    """
+
     city = request.args.get('city')
     lat = request.args.get('lat')
     lon = request.args.get('lon')
-    
+    date = request.args.get('date') # Extract the new date parameter
+
     sunspot_service = os.environ.get('SUNSPOT_BACKEND_ENDPOINT', "http://localhost:8000")
-    endpoint = None
+    # Start endpoint construction
+    endpoint = f'{sunspot_service}/api/sunspot?'
     span_name = None
+    query_parts = []
 
     if city:
         # Querying by city
-        # Backend service expects query parameter '?city='
-        endpoint = f'{sunspot_service}/api/sunspot?city={city}' 
+        query_parts.append(f'city={city}')
         span_name = 'get_sunspot_by_city_query'
     elif lat and lon:
         # Querying by coordinates
-        # Backend service expects query parameters '?lat=' and '&lon='
-        endpoint = f'{sunspot_service}/api/sunspot?lat={lat}&lon={lon}'
+        query_parts.append(f'lat={lat}')
+        query_parts.append(f'lon={lon}')
         span_name = 'get_sunspot_by_coords_query'
     else:
         # Missing required parameters
         return "Missing 'city' or 'lat'/'lon' query parameters.\n", 400
+
+    # Add optional date parameter if provided
+    if date:
+        query_parts.append(f'date={date}')
+
+    # Combine all query parts to form the final endpoint
+    endpoint += '&'.join(query_parts)
 
     result, status = fetch_sunspot(endpoint, span_name)
     return result, status

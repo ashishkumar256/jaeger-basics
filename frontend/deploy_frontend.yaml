@@ -18,7 +18,7 @@ spec:
     spec:
       containers:
         - name: sunspot-frontend
-          image: ashishkumar256/trace-ui:5
+          image: ashishkumar256/trace-ui:1
           imagePullPolicy: Always
           env:
             - name: SUNSPOT_BACKEND_ENDPOINT

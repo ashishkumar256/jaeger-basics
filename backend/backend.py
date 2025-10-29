@@ -62,7 +62,7 @@ def get_city_from_coordinates(lat, lon):
         }, headers={"User-Agent": "SunspotMinimal/1.0"})
         r.raise_for_status()
         data = r.json()
-        
+
         # Attempt to extract common place names (city, town, village)
         address = data.get("address", {})
         return address.get("city") or address.get("town") or address.get("village") or address.get("hamlet") or data.get("display_name", f"Location {lat}, {lon}")
@@ -71,22 +71,28 @@ def get_city_from_coordinates(lat, lon):
     # Fallback to coordinates if reverse lookup fails
     return f"Location {lat}, {lon}"
 
-def get_sunspot(lat, lon):
-    """Fetches sunrise and sunset data from sunrisesunset.io API."""
+def get_sunspot(lat, lon, date=None):
+    """Fetches sunrise and sunset data from sunrisesunset.io API, optionally for a specific date."""
     try:
-        r = requests.get(SUNRISE_SUNSET_API_URL, params={"lat": lat, "lng": lon})
+        # Construct parameters dictionary
+        params = {"lat": lat, "lng": lon}
+        if date:
+            params["date"] = date # Add date parameter if provided
+
+        r = requests.get(SUNRISE_SUNSET_API_URL, params=params)
         r.raise_for_status()
         data = r.json()
         if data.get("status") == "OK":
             return data["results"]
-    except:
+    except Exception as e:
+        print(f"Error fetching sunspot data: {e}")
         pass
     return None
 
 # --- View ---
 def sunspot_view(request):
     """
-    Main view to handle sunspot queries by city or coordinates.
+    Main view to handle sunspot queries by city or coordinates, with optional date.
     Includes city name in the response.
     """
     city_name = None
@@ -94,6 +100,7 @@ def sunspot_view(request):
         city = request.GET.get("city")
         lat = request.GET.get("lat")
         lon = request.GET.get("lon")
+        date = request.GET.get("date") # Extract the new date parameter
 
         if city:
             # Case 1: Query by City Name
@@ -114,18 +121,19 @@ def sunspot_view(request):
             # Case 3: Missing Parameters
             return JsonResponse({"error": "Missing city or lat/lon"}, status=400)
 
-        # Retrieve sun data using the determined coordinates
-        sun_data = get_sunspot(lat, lon)
-        
+        # Retrieve sun data using the determined coordinates and optional date
+        sun_data = get_sunspot(lat, lon, date=date)
+
         if sun_data:
             # Ensure city_name is not None (should be handled by logic above, but safety check)
             if not city_name:
-                city_name = f"Location {lat}, {lon}" 
-                
+                city_name = f"Location {lat}, {lon}"
+
             return JsonResponse({
                 "city": city_name,
                 "latitude": lat,
                 "longitude": lon,
+                "date_requested": date, # Include the requested date in the response for clarity
                 "sun_data": sun_data
             })
         else:
