@@ -40,9 +40,11 @@ spec:
     selector:
         app: sunspot-backend
     ports:
-        - protocol: TCP
+        - name: backend-port
+          protocol: TCP
           port: 8000
           targetPort: 8000
-        - protocol: TCP
+        - name: redis-port
+          protocol: TCP
           port: 6379
           targetPort: 6379          
