@@ -1,4 +1,4 @@
-FROM python:3.9-alpine
+FROM python:3.10-alpine
 
 WORKDIR /app
 
@@ -11,7 +11,10 @@ RUN pip install --no-cache-dir \
     redis==7.0.1 \
     requests==2.32.5 \
     tornado==6.5.2 \
-    python-dateutil==2.9.0.post0
+    python-dateutil==2.9.0.post0 \
+    opentelemetry-sdk==1.38.0 \
+    opentelemetry-exporter-otlp==1.38.0 \
+    opentelemetry-instrumentation-django==0.59b0
 
 EXPOSE 8000
 
