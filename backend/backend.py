@@ -1,4 +1,4 @@
-import sys
+import os, sys
 import logging
 from django.conf import settings
 from django.http import JsonResponse, HttpResponseNotFound
