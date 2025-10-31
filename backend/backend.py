@@ -1,13 +1,17 @@
 import sys
 import logging
 
-# --- Django imports ---
+# ======================================================================
+# 1. Django Imports
+# ======================================================================
 from django.conf import settings
 from django.http import JsonResponse, HttpResponseNotFound
 from django.urls import path
 from django.core.management import execute_from_command_line
 
-# --- OpenTelemetry imports ---
+# ======================================================================
+# 2. OpenTelemetry Imports
+# ======================================================================
 from opentelemetry import trace
 from opentelemetry.sdk.resources import Resource, SERVICE_NAME
 from opentelemetry.sdk.trace import TracerProvider
@@ -16,7 +20,7 @@ from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExport
 from opentelemetry.instrumentation.django import DjangoInstrumentor
 
 # ======================================================================
-# 1. Logging Setup
+# 3. Logging Setup
 # ======================================================================
 logging.basicConfig(
     level=logging.INFO,
@@ -26,7 +30,25 @@ logging.basicConfig(
 logger = logging.getLogger("hello")
 
 # ======================================================================
-# 2. OpenTelemetry (Tracing) Setup
+# 4. Django Configuration
+# ======================================================================
+def setup_django():
+    """Configure minimal Django settings."""
+    settings.configure(
+        DEBUG=False,
+        ROOT_URLCONF=__name__,
+        ALLOWED_HOSTS=["*"],
+        MIDDLEWARE=[
+            "opentelemetry.instrumentation.django.middleware.OpenTelemetryMiddleware",
+        ],
+        INSTALLED_APPS=[
+            "opentelemetry.instrumentation.django",
+        ],
+    )
+
+
+# ======================================================================
+# 5. OpenTelemetry (Tracing) Setup
 # ======================================================================
 def setup_tracing():
     """Configure OpenTelemetry tracing with fallback if OTEL agent is unreachable."""
@@ -48,25 +70,7 @@ def setup_tracing():
 
 
 # ======================================================================
-# 3. Django Configuration
-# ======================================================================
-def setup_django():
-    """Configure minimal Django settings."""
-    settings.configure(
-        DEBUG=False,
-        ROOT_URLCONF=__name__,
-        ALLOWED_HOSTS=["*"],
-        MIDDLEWARE=[
-            "opentelemetry.instrumentation.django.middleware.OpenTelemetryMiddleware",
-        ],
-        INSTALLED_APPS=[
-            "opentelemetry.instrumentation.django",
-        ],
-    )
-
-
-# ======================================================================
-# 4. Django Views
+# 6. Django Views
 # ======================================================================
 def hello_view(request):
     tracer = trace.get_tracer(__name__)
@@ -79,19 +83,19 @@ def not_found_view(request, *args, **kwargs):
 
 
 # ======================================================================
-# 5. URL Patterns
+# 7. URL Patterns
 # ======================================================================
 urlpatterns = [
-    path("api/hello", hello_view),
+    path("hello", hello_view),
     path("", not_found_view),
 ]
 
 
 # ======================================================================
-# 6. Entry Point
+# 8. Entry Point
 # ======================================================================
 if __name__ == "__main__":
     logger.info("🚀 Starting Hello Django backend with OpenTelemetry tracing...")
-    setup_tracing()
-    setup_django()
+    setup_django()     # ✅ configure Django FIRST
+    setup_tracing()    # ✅ then instrument tracing
     execute_from_command_line(["manage.py", "runserver", "0.0.0.0:8000"])
