@@ -23,7 +23,11 @@ logger = logging.getLogger("hello")
 
 # --- OpenTelemetry setup ---
 def setup_tracing():
+    """Initializes OpenTelemetry TracerProvider and instruments Django."""
     try:
+        # Django instrumentation must happen *after* settings are configured
+        DjangoInstrumentor().instrument()
+        
         resource = Resource(attributes={SERVICE_NAME: "hello-django"})
         provider = TracerProvider(resource=resource)
         exporter = OTLPSpanExporter(
@@ -32,34 +36,42 @@ def setup_tracing():
         )
         provider.add_span_processor(BatchSpanProcessor(exporter))
         trace.set_tracer_provider(provider)
-        DjangoInstrumentor().instrument()
+        
         logger.info("✅ OpenTelemetry tracing initialized (to otel-agent).")
     except Exception as e:
         logger.warning(f"⚠️ Failed to initialize tracing: {e}")
+        # Uninstrument if setup failed to prevent potential issues
         DjangoInstrumentor().uninstrument()
 
 # --- Django setup ---
 def setup_django():
+    """Configures Django settings including ROOT_URLCONF and ALLOWED_HOSTS."""
     if not settings.configured:
         settings.configure(
+            # Since we are running in production mode (or without Django project structure), 
+            # DEBUG is False, which mandates setting ALLOWED_HOSTS.
             DEBUG=False,
             ROOT_URLCONF=__name__,
-            ALLOWED_HOSTS = ["0.0.0.0"],
+            # Allowing '0.0.0.0' for binding to all interfaces.
+            ALLOWED_HOSTS = ["*"], 
             INSTALLED_APPS=[
                 "opentelemetry.instrumentation.django",
             ],
         )
         logger.info("✅ Django settings configured successfully.")
     else:
+        # This message indicates an ordering issue if it appears before tracing setup.
         logger.info("⚠️ Django settings already configured, skipping reconfiguration.")
 
 # --- Views ---
 def hello_view(request):
+    """Simple view that returns a JSON message and creates a custom span."""
     tracer = trace.get_tracer(__name__)
     with tracer.start_as_current_span("hello-view-span"):
         return JsonResponse({"message": "Hello, world!"})
 
 def not_found_view(request, *args, **kwargs):
+    """Custom 404 handler for the root URL."""
     return HttpResponseNotFound("404 Not Found")
 
 # --- URL patterns ---
@@ -71,10 +83,15 @@ urlpatterns = [
 # --- Entry point ---
 if __name__ == "__main__":
     logger.info("🚀 Starting Hello Django backend with OpenTelemetry tracing...")
-    setup_tracing()
+    
+    # CRITICAL FIX: setup_django MUST be called first to configure 
+    # settings (like ALLOWED_HOSTS) before any Django component 
+    # (like the instrumentation) attempts to use them.
     setup_django()
-
+    setup_tracing()
+    
     try:
+        # Start the Django development server
         execute_from_command_line(["manage.py", "runserver", "0.0.0.0:8000"])
     except Exception as e:
         logger.error(f"❌ Django failed to start: {e}")
