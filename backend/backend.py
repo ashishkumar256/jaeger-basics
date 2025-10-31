@@ -44,7 +44,7 @@ def setup_django():
         settings.configure(
             DEBUG=False,
             ROOT_URLCONF=__name__,
-            ALLOWED_HOSTS = ['*'],
+            ALLOWED_HOSTS = ["0.0.0.0"],
             INSTALLED_APPS=[
                 "opentelemetry.instrumentation.django",
             ],
