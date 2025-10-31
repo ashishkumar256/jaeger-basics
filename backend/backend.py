@@ -22,26 +22,32 @@ logging.basicConfig(
 logger = logging.getLogger("hello")
 
 # --- OpenTelemetry setup ---
+# --- OpenTelemetry setup ---
 def setup_tracing():
     """Initializes OpenTelemetry TracerProvider and instruments Django."""
     try:
-        # Django instrumentation must happen *after* settings are configured
+        # Instrument Django (must come after settings.configure)
         DjangoInstrumentor().instrument()
-        
+
+        # 1️⃣ Dynamically determine OTLP endpoint
+        otel_endpoint = os.getenv(
+            "OTEL_EXPORTER_OTLP_ENDPOINT",  # prefer explicit env var
+            f"http://{os.getenv('HOST_IP', 'localhost')}:4318/v1/traces"  # fallback
+        )
+
+        # 2️⃣ Setup provider and exporter
         resource = Resource(attributes={SERVICE_NAME: "hello-django"})
         provider = TracerProvider(resource=resource)
-        exporter = OTLPSpanExporter(
-            endpoint="http://localhost:4318/v1/traces",  # adjust if otel-agent URL differs
-            timeout=5,
-        )
+        exporter = OTLPSpanExporter(endpoint=otel_endpoint, timeout=5)
         provider.add_span_processor(BatchSpanProcessor(exporter))
         trace.set_tracer_provider(provider)
-        
-        logger.info("✅ OpenTelemetry tracing initialized (to otel-agent).")
+
+        logger.info(f"✅ OpenTelemetry tracing initialized (to {otel_endpoint}).")
+
     except Exception as e:
         logger.warning(f"⚠️ Failed to initialize tracing: {e}")
-        # Uninstrument if setup failed to prevent potential issues
         DjangoInstrumentor().uninstrument()
+
 
 # --- Django setup ---
 def setup_django():

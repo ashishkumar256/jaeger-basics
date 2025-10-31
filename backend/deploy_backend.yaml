@@ -18,12 +18,19 @@ spec:
     spec:
       containers:
         - name: sunspot-backend
-          image: ashishkumar256/trace-api:auto-8
+          image: ashishkumar256/trace-api:auto-9
           imagePullPolicy: Always
           ports:
             - name: backend-port
               containerPort: 8000
               protocol: TCP
+          env:
+            - name: HOST_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://$(HOST_IP):4318/v1/traces"              
         - name: redis
           image: redis
           imagePullPolicy: Always
