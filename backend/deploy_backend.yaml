@@ -18,7 +18,7 @@ spec:
     spec:
       containers:
         - name: sunspot-backend
-          image: ashishkumar256/trace-api:auto-10
+          image: ashishkumar256/trace-api:auto-11
           imagePullPolicy: Always
           ports:
             - name: backend-port
@@ -30,31 +30,37 @@ spec:
                 fieldRef:
                   fieldPath: status.hostIP
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
-              value: "http://$(HOST_IP):4318/v1/traces"              
-        - name: redis
-          image: redis
-          imagePullPolicy: Always
-          ports:
-            - name: redis-port
-              containerPort: 6379
-              protocol: TCP
-          readinessProbe:
-            exec:
-              command:
-                - redis-cli
-                - PING
-            initialDelaySeconds: 5
-            periodSeconds: 10
-            timeoutSeconds: 5
-          livenessProbe:
-            exec:
-              command:
-                - redis-cli
-                - PING
-            initialDelaySeconds: 15
-            periodSeconds: 20
-            timeoutSeconds: 5
-            failureThreshold: 3
+              value: "http://$(HOST_IP):4318/v1/traces"     
+            - name: OTEL_SERVICE_NAME
+              value: "hello-django"
+            - name: OTEL_TRACES_EXPORTER
+              value: "otlp"
+            - name: OTEL_EXPORTER_OTLP_PROTOCOL
+              value: "http/protobuf"                    
+        # - name: redis
+        #   image: redis
+        #   imagePullPolicy: Always
+        #   ports:
+        #     - name: redis-port
+        #       containerPort: 6379
+        #       protocol: TCP
+        #   readinessProbe:
+        #     exec:
+        #       command:
+        #         - redis-cli
+        #         - PING
+        #     initialDelaySeconds: 5
+        #     periodSeconds: 10
+        #     timeoutSeconds: 5
+        #   livenessProbe:
+        #     exec:
+        #       command:
+        #         - redis-cli
+        #         - PING
+        #     initialDelaySeconds: 15
+        #     periodSeconds: 20
+        #     timeoutSeconds: 5
+        #     failureThreshold: 3
 
 ---
 apiVersion: v1
