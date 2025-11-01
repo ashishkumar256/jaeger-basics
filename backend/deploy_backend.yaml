@@ -19,25 +19,21 @@ spec:
       hostNetwork: true
       containers:
         - name: sunspot-backend
-          image: ashishkumar256/trace-api:auto-11
+          image: ashishkumar256/trace-api:auto-1
           imagePullPolicy: Always
           ports:
             - name: backend-port
               containerPort: 8000
               protocol: TCP
           env:
-            # - name: HOST_IP
-            #   valueFrom:
-            #     fieldRef:
-            #       fieldPath: status.hostIP
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
               value: "http://otel-agent-opentelemetry-collector:4318/v1/traces"
             - name: OTEL_SERVICE_NAME
               value: "hello-django"
-            - name: OTEL_TRACES_EXPORTER
-              value: "otlp"
-            - name: OTEL_EXPORTER_OTLP_PROTOCOL
-              value: "http/protobuf"                    
+            # - name: OTEL_TRACES_EXPORTER
+            #   value: "otlp"
+            # - name: OTEL_EXPORTER_OTLP_PROTOCOL
+            #   value: "http/protobuf"                    
         # - name: redis
         #   image: redis
         #   imagePullPolicy: Always
