@@ -20,17 +20,18 @@ spec:
         - name: sunspot-backend
           image: ashishkumar256/trace-api:auto-11
           imagePullPolicy: Always
+          hostNetwork: true
           ports:
             - name: backend-port
               containerPort: 8000
               protocol: TCP
           env:
-            - name: HOST_IP
-              valueFrom:
-                fieldRef:
-                  fieldPath: status.hostIP
+            # - name: HOST_IP
+            #   valueFrom:
+            #     fieldRef:
+            #       fieldPath: status.hostIP
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
-              value: "http://$(HOST_IP):4318/v1/traces"     
+              value: "http://127.0.0.1:4318/v1/traces"
             - name: OTEL_SERVICE_NAME
               value: "hello-django"
             - name: OTEL_TRACES_EXPORTER
