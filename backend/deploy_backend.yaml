@@ -31,7 +31,7 @@ spec:
             #     fieldRef:
             #       fieldPath: status.hostIP
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
-              value: "http://127.0.0.1:4318/v1/traces"
+              value: "http://otel-agent-opentelemetry-collector:4318/v1/traces"
             - name: OTEL_SERVICE_NAME
               value: "hello-django"
             - name: OTEL_TRACES_EXPORTER
