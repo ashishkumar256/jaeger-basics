@@ -16,7 +16,6 @@ spec:
       labels:
         app: sunspot-backend
     spec:
-      hostNetwork: true
       containers:
         - name: sunspot-backend
           image: ashishkumar256/trace-api:auto-1
