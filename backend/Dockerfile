@@ -5,7 +5,7 @@ COPY backend.py .
 
 RUN pip install --no-cache-dir \
     django==5.2.7 \
-    opentelemetry-distro==0.46b0 \
+    opentelemetry-distro==0.59b0 \
     opentelemetry-exporter-otlp==1.38.0 \
     opentelemetry-instrumentation-django==0.59b0
 
