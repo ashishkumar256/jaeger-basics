@@ -1,61 +1,56 @@
 import sys
 import logging
-import types
-import os
-
-# ------------- Django settings MUST be defined BEFORE importing Django ---------
-
-# Create a dynamic module = "settings"
-settings = types.ModuleType("settings")
-
-from django.core.management.utils import get_random_secret_key
-
-# Assign Django settings into the module
-settings.DEBUG = False
-settings.SECRET_KEY = get_random_secret_key()       # ✅ auto-generate
-settings.ALLOWED_HOSTS = ["*"]                      # ✅ required when DEBUG=False
-settings.ROOT_URLCONF = "__main__"                  # ✅ URLs are defined in this file
-settings.INSTALLED_APPS = [
-    "django.contrib.contenttypes",
-    "django.contrib.auth",
-]
-
-# Register settings module so Django sees it
-sys.modules["settings"] = settings
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "settings")
-
-# --------------------- Safe to import Django now -------------------------------
-
-from django.http import JsonResponse, HttpResponseNotFound
-from django.urls import path
+import django
+from django.conf import settings
 from django.core.management import execute_from_command_line
+from django.http import HttpResponse
+from django.urls import path
 
-# ------------------------- Logging (optional) -----------------------------------
-
+# --- Logging setup ---
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s",
-    handlers=[logging.StreamHandler(sys.stdout)],
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+    handlers=[logging.StreamHandler(sys.stdout)]
 )
-logger = logging.getLogger("hello")
 
-# ----------------------------- Views --------------------------------------------
+logger = logging.getLogger(__name__)
 
-def hello_view(request):
-    return JsonResponse({"message": "Hello, world!"})
+logger.info("Starting Django application with OpenTelemetry auto-tracing")
 
-def not_found_view(request, *args, **kwargs):
-    return HttpResponseNotFound("404 Not Found")
+# Configure settings directly if not configured
+if not settings.configured:
+    logger.info("Configuring Django settings")
+    settings.configure(
+        ROOT_URLCONF=__name__,
+        INSTALLED_APPS=[
+            'django.contrib.contenttypes',
+            'django.contrib.auth',
+        ],
+        MIDDLEWARE=[
+            'django.middleware.common.CommonMiddleware',
+        ],
+    )
 
-# ----------------------------- URL patterns -------------------------------------
+django.setup()
 
+# Force override settings after setup (necessary due to OpenTelemetry)
+settings.DEBUG = True
+settings.ALLOWED_HOSTS = ['*']
+
+logger.info(f"Django setup complete - DEBUG: {settings.DEBUG}, ALLOWED_HOSTS: {settings.ALLOWED_HOSTS}")
+
+# View
+def hello_world(request):
+    logger.info(f"Hello World view called - Method: {request.method}, Path: {request.path}")
+    return HttpResponse("Hello, World!")
+
+# URL configuration
 urlpatterns = [
-    path("api/hello", hello_view),
-    path("", not_found_view),
+    path('', hello_world),
+    path('api/hello', hello_world),
 ]
 
-# ----------------------------- Entry point --------------------------------------
-
-if __name__ == "__main__":
-    logger.info("🚀 Starting Hello Django backend...")
+if __name__ == '__main__':
+    logger.info("Starting Django development server on 0.0.0.0:8000")
     execute_from_command_line(["manage.py", "runserver", "0.0.0.0:8000"])
