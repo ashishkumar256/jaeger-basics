@@ -27,6 +27,10 @@ spec:
           env:
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
               value: "http://otel-agent-opentelemetry-collector.tracing.svc:4318"
+            - name: OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
+              value: "http://otel-agent-opentelemetry-collector.tracing.svc:4318"              
+            - name: OTEL_TRACES_EXPORTER
+              value: "console,otlp"              
             - name: OTEL_SERVICE_NAME
               value: "hello-django"
             - name: OTEL_EXPORTER_OTLP_PROTOCOL
