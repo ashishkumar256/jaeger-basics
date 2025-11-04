@@ -35,6 +35,8 @@ spec:
               value: "hello-django"
             - name: OTEL_EXPORTER_OTLP_PROTOCOL
               value: "http/protobuf"
+            - name: OTEL_LOG_LEVEL
+              value: "DEBUG"
 
 ---
 apiVersion: v1
