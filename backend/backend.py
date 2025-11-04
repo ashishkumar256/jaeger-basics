@@ -23,6 +23,7 @@ if not settings.configured:
     logger.info("Configuring Django settings")
     settings.configure(
         ROOT_URLCONF=__name__,
+        ALLOWED_HOSTS=['*'],
         INSTALLED_APPS=[
             'django.contrib.contenttypes',
             'django.contrib.auth',

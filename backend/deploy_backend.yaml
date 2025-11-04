@@ -18,7 +18,7 @@ spec:
     spec:
       containers:
         - name: sunspot-backend
-          image: ashishkumar256/trace-api:auto-2
+          image: ashishkumar256/trace-api:auto-3
           imagePullPolicy: Always
           ports:
             - name: backend-port
@@ -37,6 +37,8 @@ spec:
               value: "http/protobuf"
             - name: OTEL_LOG_LEVEL
               value: "DEBUG"
+            - name: DJANGO_SETTINGS_MODULE
+              value: "backend"              
 
 ---
 apiVersion: v1
